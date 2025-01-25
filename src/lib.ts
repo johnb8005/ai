@@ -9,7 +9,7 @@ const url = "https://api.anthropic.com/v1/messages";
 type Model =
   | "claude-3-5-sonnet-latest"
   | "claude-3-sonnet-20240229" // $3.00 / $15.00
-  | "claude-3-5-haiku-20241022"; //$0.80 / $4.00
+  | "claude-3-5-haiku-20241022"; // $0.80 / $4.00
 
 interface Tool {
   name: string;
