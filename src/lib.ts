@@ -1,6 +1,6 @@
 import fs from "fs"; // https://docs.anthropic.com/en/docs/welcome
 import { API_KEY } from "./config";
-import type { ApiResponse, Options, Tool, ToolResponse } from "./type";
+import type { ApiContent, ApiResponse, Options, Tool } from "./type";
 import { processResponse, processStream } from "./utils";
 
 const url = "https://api.anthropic.com/v1/messages";
@@ -8,7 +8,7 @@ const url = "https://api.anthropic.com/v1/messages";
 export const genericCall = async (
   messages: { role: "user"; content: string }[],
   options: Partial<Options> = {}
-): Promise<string | ToolResponse> => {
+): Promise<ApiContent[]> => {
   const headers = {
     "Content-Type": "application/json",
     "x-api-key": API_KEY,
@@ -44,11 +44,14 @@ export const genericCall = async (
   }
 
   if (options.stream) {
-    return processStream(response, options.stream);
+    const text = await processStream(response, options.stream);
+
+    return [{ text, type: "text" }];
   }
 
-  const data: ApiResponse = await response.json();
-  return processResponse(data);
+  const { content }: ApiResponse = await response.json();
+
+  return content;
 };
 
 export async function reviewCode(question: string, codeFile: string) {
@@ -107,5 +110,10 @@ export async function reviewCode(question: string, codeFile: string) {
   }
 }
 
-export const callClaude = (prompt: string, options: Partial<Options> = {}) =>
-  genericCall([{ role: "user", content: prompt }], options);
+export const callClaude = async (
+  prompt: string,
+  options: Partial<Options> = {}
+) => {
+  const res = await genericCall([{ role: "user", content: prompt }], options);
+  return processResponse(res);
+};

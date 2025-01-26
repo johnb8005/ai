@@ -8,16 +8,16 @@ export const isTextResponse = (
 ): x is T.TextResponse => x.type === "text" && x.text !== undefined;
 
 export const processResponse = (
-  data: T.ApiResponse
+  content: T.ApiContent[]
 ): string | T.ToolResponse => {
-  const toolCall = data.content.find(isToolResponse);
+  const toolCall = content.find(isToolResponse);
 
   // Handle tool calls in the response
   if (toolCall) {
     return toolCall;
   }
 
-  const textResponse = data.content.find(isTextResponse);
+  const textResponse = content.find(isTextResponse);
 
   if (!textResponse) {
     throw new Error("No text response from API");

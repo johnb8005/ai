@@ -33,8 +33,10 @@ export interface ToolResponse {
   };
 }
 
+export type ApiContent = TextResponse | ToolResponse;
+
 export interface ApiResponse {
-  content: Array<TextResponse | ToolResponse>;
+  content: Array<ApiContent>;
 }
 
 export interface StreamingOptions {
