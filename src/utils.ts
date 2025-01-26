@@ -25,3 +25,33 @@ export const processResponse = (
 
   return textResponse.text;
 };
+
+export const processStream = async (
+  response: Response,
+  stream: T.StreamingOptions
+): Promise<string> => {
+  const reader = response.body?.getReader();
+  let content = "";
+
+  while (reader) {
+    const { value, done } = await reader.read();
+    if (done) break;
+
+    const chunk = new TextDecoder().decode(value);
+    const lines = chunk.split("\n").filter((line) => line.trim());
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const jsonStr = line.slice(6); // Remove 'data: ' prefix
+      if (jsonStr === "[DONE]") break;
+
+      const data = JSON.parse(jsonStr);
+      if (data.type === "content_block_delta") {
+        content += data.delta.text;
+        stream.onUpdate(data.delta.text);
+      }
+    }
+  }
+  return content;
+};
+//

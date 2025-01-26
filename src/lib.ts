@@ -1,8 +1,7 @@
 import fs from "fs"; // https://docs.anthropic.com/en/docs/welcome
-
 import { API_KEY } from "./config";
 import type { ApiResponse, Options, Tool, ToolResponse } from "./type";
-import { processResponse } from "./utils";
+import { processResponse, processStream } from "./utils";
 
 const url = "https://api.anthropic.com/v1/messages";
 
@@ -24,18 +23,20 @@ export const genericCall = async (
     tools,
   } = options;
 
+  const payload = {
+    messages,
+    model,
+    max_tokens,
+    temperature,
+    system,
+    tools,
+    stream: !!options.stream,
+  };
+
   const response = await fetch(url, {
     method: "POST",
     headers,
-    body: JSON.stringify({
-      messages,
-      model,
-      max_tokens,
-      temperature,
-      system,
-      tools,
-      stream: !!options.stream,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -43,35 +44,10 @@ export const genericCall = async (
   }
 
   if (options.stream) {
-    console.log("Streaming enabled");
-    const reader = response.body?.getReader();
-    let content = "";
-
-    while (reader) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      const chunk = new TextDecoder().decode(value);
-      const lines = chunk.split("\n").filter((line) => line.trim());
-
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const jsonStr = line.slice(6); // Remove 'data: ' prefix
-        if (jsonStr === "[DONE]") break;
-
-        const data = JSON.parse(jsonStr);
-        if (data.type === "content_block_delta") {
-          content += data.delta.text;
-          options.stream.onUpdate(data.delta.text);
-        }
-      }
-    }
-
-    return content;
+    return processStream(response, options.stream);
   }
 
   const data: ApiResponse = await response.json();
-
   return processResponse(data);
 };
 
@@ -130,11 +106,6 @@ export async function reviewCode(question: string, codeFile: string) {
     console.error("Error:", error);
   }
 }
-
-export const getCode = async (prompt: string) =>
-  genericCall([{ role: "user", content: prompt }], {
-    system: "You must respond with only code, no explanations or comments.",
-  });
 
 export const callClaude = (prompt: string, options: Partial<Options> = {}) =>
   genericCall([{ role: "user", content: prompt }], options);
