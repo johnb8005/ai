@@ -9,5 +9,7 @@ if (process.argv.length < 3) {
 // Join all arguments after the script name
 const query = process.argv.slice(2).join(" ");
 
-const result = await callClaude(query);
+const result = await callClaude(query, { stream: {
+    onUpdate: (content) => console.log(content)
+  }});
 console.log(result);

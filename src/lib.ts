@@ -1,41 +1,15 @@
 import fs from "fs"; // https://docs.anthropic.com/en/docs/welcome
 
 import { API_KEY } from "./config";
+import type { ApiResponse, Options, Tool, ToolResponse } from "./type";
+import { processResponse } from "./utils";
 
 const url = "https://api.anthropic.com/v1/messages";
 
-// https://docs.anthropic.com/en/docs/about-claude/models
-// https://docs.anthropic.com/en/docs/about-claude/models#model-comparison-table
-type Model =
-  | "claude-3-5-sonnet-latest"
-  | "claude-3-sonnet-20240229" // $3.00 / $15.00
-  | "claude-3-5-haiku-20241022"; // $0.80 / $4.00
-
-interface Tool {
-  name: string;
-  description: string;
-  input_schema: {
-    type: string;
-    properties: {
-      [key: string]: {
-        type: string;
-        description: string;
-      };
-    };
-    required: string[];
-  };
-}
-
-export async function genericCall(
+export const genericCall = async (
   messages: { role: "user"; content: string }[],
-  options: {
-    model?: Model;
-    max_tokens?: number;
-    temperature?: number;
-    system?: string;
-    tools?: Tool[];
-  } = {}
-) {
+  options: Partial<Options> = {}
+): Promise<string | ToolResponse> => {
   const headers = {
     "Content-Type": "application/json",
     "x-api-key": API_KEY,
@@ -60,6 +34,7 @@ export async function genericCall(
       temperature,
       system,
       tools,
+      stream: !!options.stream,
     }),
   });
 
@@ -67,17 +42,38 @@ export async function genericCall(
     throw new Error(`API call failed: ${response.status}`);
   }
 
-  const data: { content: any[] } = await response.json();
+  if (options.stream) {
+    console.log("Streaming enabled");
+    const reader = response.body?.getReader();
+    let content = "";
 
-  const toolCall = data.content.find((x) => x.type === "tool_use");
+    while (reader) {
+      const { value, done } = await reader.read();
+      if (done) break;
 
-  // Handle tool calls in the response
-  if (toolCall) {
-    return toolCall;
+      const chunk = new TextDecoder().decode(value);
+      const lines = chunk.split("\n").filter((line) => line.trim());
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        const jsonStr = line.slice(6); // Remove 'data: ' prefix
+        if (jsonStr === "[DONE]") break;
+
+        const data = JSON.parse(jsonStr);
+        if (data.type === "content_block_delta") {
+          content += data.delta.text;
+          options.stream.onUpdate(data.delta.text);
+        }
+      }
+    }
+
+    return content;
   }
 
-  return data.content[0].text;
-}
+  const data: ApiResponse = await response.json();
+
+  return processResponse(data);
+};
 
 export async function reviewCode(question: string, codeFile: string) {
   const functionCalls: { [k: string]: (x: any) => any } = {
@@ -140,13 +136,5 @@ export const getCode = async (prompt: string) =>
     system: "You must respond with only code, no explanations or comments.",
   });
 
-export const callClaude = (
-  prompt: string,
-  options: {
-    model?: Model;
-    max_tokens?: number;
-    temperature?: number;
-    system?: string;
-    tools?: Tool[];
-  } = {}
-) => genericCall([{ role: "user", content: prompt }], options);
+export const callClaude = (prompt: string, options: Partial<Options> = {}) =>
+  genericCall([{ role: "user", content: prompt }], options);

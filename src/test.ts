@@ -1,4 +1,5 @@
 import { callClaude } from "./lib";
+import { isToolResponse } from "./utils";
 
 // Example usage
 async function example() {
@@ -12,9 +13,7 @@ async function example() {
 
 example();
 
-type FunctionCall = "get_weather";
-
-const functionCalls: { [functionCall in FunctionCall]?: (x: any) => any } = {
+const functionCalls: { [functionCall: string]: (x: any) => any } = {
   get_weather: (_city: string) => Math.random() * 60 - 15,
 };
 
@@ -43,12 +42,9 @@ async function weather(locationInput: string) {
         tools,
       }
     );
-    console.log("re", result);
-    if (typeof result !== "string" && "name" in result) {
-      const {
-        name,
-        input,
-      }: { name: FunctionCall; input: { [k: string]: any } } = result;
+
+    if (isToolResponse(result)) {
+      const { name, input } = result;
 
       const fx = functionCalls[name];
 
