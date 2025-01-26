@@ -1,6 +1,17 @@
-import { getCode } from "./lib";
+import path from "path";
+import { reviewCode } from "./lib";
+
+// Check if a query is provided as a command-line argument
+if (process.argv.length < 4) {
+  console.log(
+    "Please provide a query as a command-line argument and a path to a file"
+  );
+  process.exit(1);
+}
+
+// Join all arguments after the script name
+const [query, filePath] = process.argv.slice(2);
+const absolutePath = path.resolve(filePath);
 
 // Example usage
-getCode("Write a function that sorts an array")
-  .then((code) => console.log(code))
-  .catch((err) => console.error(err));
+reviewCode(query, absolutePath);

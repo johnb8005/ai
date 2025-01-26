@@ -1,4 +1,4 @@
-// https://docs.anthropic.com/en/docs/welcome
+import fs from "fs"; // https://docs.anthropic.com/en/docs/welcome
 
 import { API_KEY } from "./config";
 
@@ -17,7 +17,7 @@ interface Tool {
   input_schema: {
     type: string;
     properties: {
-      location: {
+      [key: string]: {
         type: string;
         description: string;
       };
@@ -77,6 +77,62 @@ export async function genericCall(
   }
 
   return data.content[0].text;
+}
+
+export async function reviewCode(question: string, codeFile: string) {
+  const functionCalls: { [k: string]: (x: any) => any } = {
+    update_code: (newCode: string) => {
+      fs.writeFileSync(codeFile, newCode);
+      return true;
+    },
+  };
+
+  const tools: Tool[] = [
+    {
+      name: "update_code",
+      description: "Update code based on review feedback",
+      input_schema: {
+        type: "object",
+        properties: {
+          updatedCode: {
+            type: "string",
+            description: "The modified code with improvements",
+          },
+        },
+        required: ["updatedCode"],
+      },
+    },
+  ];
+
+  const codeContent = fs.readFileSync(codeFile, "utf-8");
+
+  try {
+    const result = await callClaude(
+      `${question}\nHere is the code to review:\n${codeContent}`,
+      { tools }
+    );
+
+    if (typeof result !== "string" && "name" in result) {
+      const { name, input } = result;
+
+      // Handle the updated code
+      const { updatedCode } = input;
+
+      const fx = functionCalls[name];
+
+      if (!fx) {
+        throw "to handle";
+      }
+
+      const out = fx(updatedCode);
+
+      return {
+        out,
+      };
+    }
+  } catch (error) {
+    console.error("Error:", error);
+  }
 }
 
 export const getCode = async (prompt: string) =>
